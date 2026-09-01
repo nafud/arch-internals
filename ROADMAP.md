@@ -157,6 +157,14 @@ non-negotiable for troubleshooting.
   package (the older `asp` tool is deprecated).
 - The AUR ships **build scripts, not binaries** — you (or a helper) build
   locally. Read every PKGBUILD before building; the AUR is user content.
+- **How the distribution itself operates** (the machinery behind your
+  mirror): every official package has its own Git repository on
+  Arch's GitLab (this is what `pkgctl repo clone` fetches); a packager bumps
+  the PKGBUILD, builds it in a clean chroot with devtools, signs the package
+  with their key (trusted via `archlinux-keyring`), and pushes it into the
+  repo databases; mirrors then sync from the master server in tiers. Tracing
+  one real package update from upstream release notes to `pacman -Syu` on
+  your VM makes the whole rolling-release model concrete.
 - Key operations and what they touch: `-Syu`, `-U`, `-R`/`-Rs`, `-Qi`/`-Qo`/
   `-Ql`, `-F`, `-Qtd` (orphans), `.pacnew`/`.pacsave` handling with
   `pacdiff`.
@@ -241,53 +249,121 @@ from the symptoms and fix it from a live ISO.
 
 ---
 
-## Phase 4 — systemd: init, services, logging, devices
+## Phase 4 — systemd and the daemon landscape
 
 Arch uses systemd for init, service management, logging, device events,
-timers, and more. Fluency here is fluency in a running Arch system.
+timers, and more. Fluency here is fluency in a running Arch system: nearly
+every long-running process on a stock install is either PID 1 or a daemon it
+supervises, so this phase is a deep dive into what daemons *are* and which
+ones make Arch tick.
 
 **Read**
 
 - [systemd](https://wiki.archlinux.org/title/Systemd) — full page.
 - [systemd/Journal](https://wiki.archlinux.org/title/Systemd/Journal)
 - [systemd/Timers](https://wiki.archlinux.org/title/Systemd/Timers)
+- [systemd/User](https://wiki.archlinux.org/title/Systemd/User) — the
+  per-user instance.
 - [systemd FAQ](https://wiki.archlinux.org/title/Systemd/FAQ)
 - [udev](https://wiki.archlinux.org/title/Udev)
+- [D-Bus](https://wiki.archlinux.org/title/D-Bus)
+- [systemd-timesyncd](https://wiki.archlinux.org/title/Systemd-timesyncd)
 - Man pages: `man systemd`, `man systemd.unit`, `man systemd.service`,
-  `man systemd.target`, `man bootup`, `man journalctl`, `man udev`.
+  `man systemd.exec`, `man systemd.socket`, `man systemd.target`,
+  `man bootup`, `man daemon` (systemd's own essay on classic vs "new-style"
+  daemons — read this one carefully), `man journalctl`, `man udev`,
+  `man sd_notify`.
 
-**Understand**
+**Understand — what a daemon is**
+
+- The classic SysV daemon recipe (double-fork, `setsid`, detach from the
+  terminal, write a pidfile, log to syslog) versus a systemd "new-style"
+  daemon: an ordinary foreground process that systemd starts, supervises in
+  its own cgroup, and whose stdout/stderr land in the journal. `man daemon`
+  covers both worlds.
+- Service types and what they mean for supervision: `simple`/`exec`,
+  `forking`, `oneshot`, `notify` (readiness via `sd_notify`), `dbus`, `idle`.
+- **Socket activation**: systemd listens on the socket, starts the daemon on
+  first connection, and passes the file descriptor in — why this enables
+  parallel boot and on-demand services.
+- Every service runs in its own **cgroup** (v2): explore the tree with
+  `systemd-cgls`, live usage with `systemd-cgtop`; resource limits via
+  `man systemd.resource-control`.
+- Sandboxing directives in unit files (`ProtectSystem=`, `PrivateTmp=`,
+  `NoNewPrivileges=`, … — `man systemd.exec`) and the audit tool
+  `systemd-analyze security <unit>`.
+
+**Understand — the machinery of systemd itself**
 
 - Units and their types (service, target, timer, mount, socket, path, …);
   targets as runlevel successors (`multi-user.target`, `graphical.target`).
 - Unit file locations and precedence: `/usr/lib/systemd/system/` (packaged)
   vs `/etc/systemd/system/` (admin); drop-in overrides via
-  `systemctl edit`.
+  `systemctl edit`; what `enable` actually does (creates symlinks per the
+  unit's `[Install]` section).
 - Dependency and ordering directives (`Wants=`, `Requires=`, `After=`,
   `Before=`) and how the boot transaction is assembled.
 - The journal: binary logs, persistence in `/var/log/journal/`, filtering
   (`-b`, `-u`, `-p`, `--since`), size management.
 - Boot-time analysis: `systemd-analyze`, `systemd-analyze blame`,
   `systemd-analyze critical-chain`.
-- udev: kernel uevents, rules (`/etc/udev/rules.d/`), persistent device
-  naming (`/dev/disk/by-uuid/`, network interface names).
-- Related pieces you'll meet constantly: `systemd-logind` (seats/sessions),
-  `systemd-tmpfiles`, `systemd-sysusers`, `timedatectl`, `localectl`,
-  `hostnamectl`.
+- The user instance: `systemctl --user`, lingering, where user units live.
+
+**Understand — the daemon roster of a stock Arch system**
+
+Run `systemctl list-units --type=service` on your VM and account for every
+row. On a minimal install you should be able to explain at least:
+
+| Daemon | Job | Interrogate with |
+|---|---|---|
+| `systemd` (PID 1) | init, service manager, supervision | `systemctl` |
+| `systemd-journald` | collects kernel + service logs | `journalctl` |
+| `systemd-udevd` | kernel uevents → device nodes, rules, module loading | `udevadm` |
+| `systemd-logind` | seats, sessions, power/lid handling | `loginctl` |
+| `systemd-timesyncd` | SNTP time sync | `timedatectl` |
+| `systemd-networkd` / `systemd-resolved` | networking / DNS (if enabled — Phase 7) | `networkctl` / `resolvectl` |
+| D-Bus broker | inter-process message bus that most of the above talk over | `busctl` |
+| `agetty` | the login prompt on each virtual console | `systemctl status getty@tty1` |
+
+- D-Bus as the system's nervous system: system vs session bus, how
+  `systemctl`/`loginctl`/`timedatectl` are largely D-Bus clients of the
+  corresponding daemon, bus activation of services. Explore with
+  `busctl list`, `busctl tree`, `busctl introspect`. (Arch ships
+  `dbus-broker` as its D-Bus implementation — verify current state on the
+  wiki page.)
+- udev in depth: kernel uevents, rules (`/etc/udev/rules.d/`), persistent
+  device naming (`/dev/disk/by-uuid/`, network interface names).
+- Related pieces you'll meet constantly: `systemd-tmpfiles`,
+  `systemd-sysusers`, `timedatectl`, `localectl`, `hostnamectl`.
 
 **Lab**
 
+- Account for every running service on your minimal VM (the table above):
+  for each, find its unit file, its cgroup, its journal stream, and its
+  D-Bus name if it has one. Write the tour up in `notes/04-systemd/`.
 - Write a custom service unit + timer pair (e.g. a backup script), enable it,
   trace its logs in the journal.
+- Write the same small daemon twice: once `Type=simple`, once `Type=notify`
+  with an `sd_notify` readiness call (a shell script with `systemd-notify`
+  is fine); observe how `systemctl start` behaves differently.
+- Make a toy socket-activated echo service (`.socket` + `.service`) and
+  watch systemd spawn it on first connection.
+- Run `systemd-analyze security` against a stock daemon and your own service;
+  harden yours with sandboxing directives until the score improves.
+- Explore the bus: `busctl introspect org.freedesktop.login1` and call a
+  method (e.g. query your session) from the CLI.
 - Override a packaged unit with `systemctl edit` and inspect the drop-in.
 - Walk your boot with `systemd-analyze critical-chain` and speed something up.
 - Write a udev rule (e.g. symlink or permission change for a USB device) and
   test with `udevadm monitor` / `udevadm test`.
 - Break-and-repair: mask a critical unit, observe the degraded boot, recover
-  via `systemd.unit=rescue.target`.
+  via `systemd.unit=rescue.target`; kill `systemd-udevd` mid-session and
+  watch supervision restart it.
 
-**Checkpoint** — you can go from "service X misbehaves" to root cause using
-`systemctl status`, `journalctl`, and unit-file inspection alone.
+**Checkpoint** — you can name every daemon on your minimal system and its
+job, explain how a service goes from unit file to supervised cgroup, and go
+from "service X misbehaves" to root cause using `systemctl status`,
+`journalctl`, and unit-file inspection alone.
 
 ---
 

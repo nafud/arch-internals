@@ -25,6 +25,7 @@ labs/               Experiment artifacts: PKGBUILDs, unit files, udev rules,
 runbooks/           Tested repair procedures (won't-boot, broken-pacman,
                     no-network, disk-full, failed-service)
 configs/            Reference copies of interesting /etc configs from the VMs
+tools/              Repo utilities (verify-links.sh — Markdown link checker)
 ```
 
 ## Conventions

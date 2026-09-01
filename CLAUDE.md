@@ -27,6 +27,9 @@ labs/               Experiment artifacts: PKGBUILDs, systemd units, udev
 runbooks/           Tested, step-by-step repair procedures (won't-boot,
                     broken-pacman, no-network, disk-full, failed-service).
 configs/            Reference copies of interesting /etc configs from VMs.
+tools/              Repo utilities. verify-links.sh checks every Markdown
+                    link and flags wiki renames (redirects) — run it whenever
+                    egress to wiki.archlinux.org is available.
 ```
 
 Directories currently hold `.gitkeep` placeholders; they fill up as the owner
