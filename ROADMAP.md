@@ -153,9 +153,8 @@ non-negotiable for troubleshooting.
   Note: the old `community` repo was merged into `extra` when Arch moved
   packaging to Git in 2023 — older docs still mention it.
 - The build chain: PKGBUILD → `makepkg` → package → `pacman -U`. Official
-  package sources are fetched with `pkgctl repo clone` from
-  [devtools](https://wiki.archlinux.org/title/DeveloperWiki:Devtools) (the
-  older `asp` tool is deprecated).
+  package sources are fetched with `pkgctl repo clone` from the `devtools`
+  package (the older `asp` tool is deprecated).
 - The AUR ships **build scripts, not binaries** — you (or a helper) build
   locally. Read every PKGBUILD before building; the AUR is user content.
 - Key operations and what they touch: `-Syu`, `-U`, `-R`/`-Rs`, `-Qi`/`-Qo`/
@@ -527,7 +526,7 @@ beneath the distro into the kernel itself. It is open-ended.
   to [kernel.org](https://www.kernel.org/) and the
   [official kernel documentation](https://docs.kernel.org/).
 - *The Linux Programming Interface* (Kerrisk) for the syscall boundary.
-- The free book *Linux Kernel Development* (Love) for classic internals
+- *Linux Kernel Development* (Love) for classic internals
   (scheduler, memory, VFS), then current docs.kernel.org for what changed.
 - [Profiling](https://wiki.archlinux.org/title/Profiling) /
   [perf](https://wiki.archlinux.org/title/Perf) on the wiki.
