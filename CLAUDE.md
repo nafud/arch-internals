@@ -20,8 +20,8 @@ ROADMAP.md          The learning plan — the spine of the repo. Phases 0–10,
                     each with wiki reading, concepts, labs, and a checkpoint.
 README.md           Repo overview and conventions.
 notes/NN-<topic>/   Per-phase study notes and lab journals
-                    (01-installation … 08-graphics, numbered to match the
-                    roadmap's phase order for phases 1–8).
+                    (00-foundations … 08-graphics, numbered to match the
+                    roadmap's phase order for phases 0–8).
 labs/               Experiment artifacts: PKGBUILDs, systemd units, udev
                     rules, kernel-module hello-worlds, VM definitions.
 runbooks/           Tested, step-by-step repair procedures (won't-boot,

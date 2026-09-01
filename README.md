@@ -3,6 +3,7 @@
 ```
 ROADMAP.md          The learning plan (phases 0–10)
 notes/              Per-phase study notes and install/lab journals
+  00-foundations/
   01-installation/
   02-pacman/
   03-boot/
