@@ -158,7 +158,8 @@ non-negotiable for troubleshooting.
 - The AUR ships **build scripts, not binaries** — you (or a helper) build
   locally. Read every PKGBUILD before building; the AUR is user content.
 - **How the distribution itself operates** (the machinery behind your
-  mirror): every official package has its own Git repository on
+  mirror): every official package base (*pkgbase* — split packages share
+  one PKGBUILD and one repo) has its own Git repository on
   Arch's GitLab (this is what `pkgctl repo clone` fetches); a packager bumps
   the PKGBUILD, builds it in a clean chroot with devtools, signs the package
   with their key (trusted via `archlinux-keyring`), and pushes it into the
@@ -282,7 +283,8 @@ ones make Arch tick.
   its own cgroup, and whose stdout/stderr land in the journal. `man daemon`
   covers both worlds.
 - Service types and what they mean for supervision: `simple`/`exec`,
-  `forking`, `oneshot`, `notify` (readiness via `sd_notify`), `dbus`, `idle`.
+  `forking`, `oneshot`, `notify` (readiness via `sd_notify`) and
+  `notify-reload`, `dbus`, `idle`.
 - **Socket activation**: systemd listens on the socket, starts the daemon on
   first connection, and passes the file descriptor in — why this enables
   parallel boot and on-demand services.
@@ -328,9 +330,9 @@ row. On a minimal install you should be able to explain at least:
 - D-Bus as the system's nervous system: system vs session bus, how
   `systemctl`/`loginctl`/`timedatectl` are largely D-Bus clients of the
   corresponding daemon, bus activation of services. Explore with
-  `busctl list`, `busctl tree`, `busctl introspect`. (Arch ships
-  `dbus-broker` as its D-Bus implementation — verify current state on the
-  wiki page.)
+  `busctl list`, `busctl tree`, `busctl introspect`. (Arch has shipped
+  `dbus-broker` as its default D-Bus implementation since January 2023; the
+  reference `dbus-daemon` remains available via `dbus-daemon-units`.)
 - udev in depth: kernel uevents, rules (`/etc/udev/rules.d/`), persistent
   device naming (`/dev/disk/by-uuid/`, network interface names).
 - Related pieces you'll meet constantly: `systemd-tmpfiles`,
@@ -350,8 +352,9 @@ row. On a minimal install you should be able to explain at least:
   watch systemd spawn it on first connection.
 - Run `systemd-analyze security` against a stock daemon and your own service;
   harden yours with sandboxing directives until the score improves.
-- Explore the bus: `busctl introspect org.freedesktop.login1` and call a
-  method (e.g. query your session) from the CLI.
+- Explore the bus: `busctl tree org.freedesktop.login1`, then
+  `busctl introspect org.freedesktop.login1 /org/freedesktop/login1`, and
+  call a method (e.g. query your session) from the CLI.
 - Override a packaged unit with `systemctl edit` and inspect the drop-in.
 - Walk your boot with `systemd-analyze critical-chain` and speed something up.
 - Write a udev rule (e.g. symlink or permission change for a USB device) and
